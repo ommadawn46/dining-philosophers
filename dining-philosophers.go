@@ -54,7 +54,7 @@ func (p *philosopher) run(done chan struct{}) {
 
 func newPhilosopher(name string, action func(*philosopher)) *philosopher {
 	fork := make(chan struct{}, 1)
-	go func() { fork <- struct{}{} }()
+	fork <- struct{}{}
 	return &philosopher{
 		name:      name,
 		rightFork: fork,
@@ -62,9 +62,9 @@ func newPhilosopher(name string, action func(*philosopher)) *philosopher {
 	}
 }
 
-func dine(names []string, actions []func(*philosopher)) error {
+func setupDining(names []string, actions []func(*philosopher)) ([]*philosopher, error) {
 	if len(names) != len(actions) {
-		return fmt.Errorf("names length and actions length must be same")
+		return nil, fmt.Errorf("names length and actions length must be same")
 	}
 
 	philosophers := []*philosopher{}
@@ -84,6 +84,10 @@ func dine(names []string, actions []func(*philosopher)) error {
 		}
 	}
 
+	return philosophers, nil
+}
+
+func startDining(philosophers []*philosopher) {
 	startTime := time.Now()
 	doneChannels := []chan struct{}{}
 	for _, philo := range philosophers {
@@ -97,7 +101,6 @@ func dine(names []string, actions []func(*philosopher)) error {
 	endTime := time.Now()
 
 	fmt.Printf("dining finished in %.2f seconds.", (endTime.Sub(startTime)).Seconds())
-	return nil
 }
 
 func allTakeRightFirst() {
@@ -108,7 +111,7 @@ func allTakeRightFirst() {
 		p.returnLeftFork()
 		p.returnRightFork()
 	}
-	dine(
+	pholosophers, _ := setupDining(
 		philosopherNames,
 		[]func(*philosopher){
 			takeRightForkFirst,
@@ -118,6 +121,7 @@ func allTakeRightFirst() {
 			takeRightForkFirst,
 		},
 	)
+	startDining(pholosophers)
 }
 
 func oneTakeLeftFirst() {
@@ -135,7 +139,7 @@ func oneTakeLeftFirst() {
 		p.returnRightFork()
 		p.returnLeftFork()
 	}
-	dine(
+	pholosophers, _ := setupDining(
 		philosopherNames,
 		[]func(*philosopher){
 			takeLeftForkFirst,
@@ -145,6 +149,7 @@ func oneTakeLeftFirst() {
 			takeRightForkFirst,
 		},
 	)
+	startDining(pholosophers)
 }
 
 func allAskWaiter() {
@@ -158,7 +163,7 @@ func allAskWaiter() {
 		p.returnRightFork()
 		<-waiter
 	}
-	dine(
+	pholosophers, _ := setupDining(
 		philosopherNames,
 		[]func(*philosopher){
 			waitWaitersOk,
@@ -168,6 +173,7 @@ func allAskWaiter() {
 			waitWaitersOk,
 		},
 	)
+	startDining(pholosophers)
 }
 
 func main() {
