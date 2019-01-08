@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-var eatN = 1000
-var philosopherNames = []string{"Socrates", "Plato", "Aristotle", "Kant", "Nietzsche"}
-
 var actionFlag = flag.Int("action", 0, "select philosophers action")
 
 type philosopher struct {
@@ -17,7 +14,9 @@ type philosopher struct {
 	rightFork chan struct{}
 	leftFork  chan struct{}
 
-	action func(*philosopher)
+	ateAmount   int
+	stomachSize int
+	action      func(*philosopher)
 }
 
 func (p *philosopher) takeRightFork() {
@@ -43,26 +42,34 @@ func (p *philosopher) returnLeftFork() {
 func (p *philosopher) eat() {
 	fmt.Println(p.name, "is eating.")
 	time.Sleep(time.Duration(rand.Intn(10000)) * time.Nanosecond)
+	p.ateAmount++
+}
+
+func (p *philosopher) isFull() bool {
+	return p.ateAmount >= p.stomachSize
 }
 
 func (p *philosopher) run(done chan struct{}) {
-	for i := 0; i < eatN; i++ {
+	for !p.isFull() {
 		p.action(p)
 	}
+	fmt.Println(p.name, "finished eating.")
 	done <- struct{}{}
 }
 
-func newPhilosopher(name string, action func(*philosopher)) *philosopher {
+func newPhilosopher(name string, stomachSize int, action func(*philosopher)) *philosopher {
 	fork := make(chan struct{}, 1)
 	fork <- struct{}{}
 	return &philosopher{
-		name:      name,
-		rightFork: fork,
-		action:    action,
+		name:        name,
+		rightFork:   fork,
+		ateAmount:   0,
+		stomachSize: stomachSize,
+		action:      action,
 	}
 }
 
-func setupDining(names []string, actions []func(*philosopher)) ([]*philosopher, error) {
+func setupDining(names []string, stomachSize int, actions []func(*philosopher)) ([]*philosopher, error) {
 	if len(names) != len(actions) {
 		return nil, fmt.Errorf("names length and actions length must be same")
 	}
@@ -72,7 +79,7 @@ func setupDining(names []string, actions []func(*philosopher)) ([]*philosopher, 
 		philosophers = append(
 			philosophers,
 			newPhilosopher(
-				names[i], actions[i],
+				names[i], stomachSize, actions[i],
 			),
 		)
 	}
@@ -103,89 +110,121 @@ func startDining(philosophers []*philosopher) {
 	fmt.Printf("dining finished in %.2f seconds.", (endTime.Sub(startTime)).Seconds())
 }
 
-func allTakeRightFirst() {
-	takeRightForkFirst := func(p *philosopher) {
-		p.takeRightFork()
-		p.takeLeftFork()
-		p.eat()
-		p.returnLeftFork()
-		p.returnRightFork()
+func allTakeRightFirst(philosopherNames []string, stomachSize int) {
+	actions := []func(*philosopher){}
+
+	for i := 0; i < len(philosopherNames); i++ {
+		actions = append(
+			actions,
+			func(p *philosopher) {
+				p.takeRightFork()
+				p.takeLeftFork()
+				p.eat()
+				p.returnLeftFork()
+				p.returnRightFork()
+			},
+		)
 	}
-	pholosophers, _ := setupDining(
-		philosopherNames,
-		[]func(*philosopher){
-			takeRightForkFirst,
-			takeRightForkFirst,
-			takeRightForkFirst,
-			takeRightForkFirst,
-			takeRightForkFirst,
-		},
+
+	philosophers, _ := setupDining(
+		philosopherNames, stomachSize, actions,
 	)
-	startDining(pholosophers)
+	startDining(philosophers)
 }
 
-func oneTakeLeftFirst() {
-	takeRightForkFirst := func(p *philosopher) {
-		p.takeRightFork()
-		p.takeLeftFork()
-		p.eat()
-		p.returnLeftFork()
-		p.returnRightFork()
-	}
-	takeLeftForkFirst := func(p *philosopher) {
-		p.takeLeftFork()
-		p.takeRightFork()
-		p.eat()
-		p.returnRightFork()
-		p.returnLeftFork()
-	}
-	pholosophers, _ := setupDining(
-		philosopherNames,
-		[]func(*philosopher){
-			takeLeftForkFirst,
-			takeRightForkFirst,
-			takeRightForkFirst,
-			takeRightForkFirst,
-			takeRightForkFirst,
+func oneTakeLeftFirst(philosopherNames []string, stomachSize int) {
+	actions := []func(*philosopher){
+		func(p *philosopher) {
+			p.takeLeftFork()
+			p.takeRightFork()
+			p.eat()
+			p.returnRightFork()
+			p.returnLeftFork()
 		},
+	}
+
+	for i := 1; i < len(philosopherNames); i++ {
+		actions = append(
+			actions,
+			func(p *philosopher) {
+				p.takeRightFork()
+				p.takeLeftFork()
+				p.eat()
+				p.returnLeftFork()
+				p.returnRightFork()
+			},
+		)
+	}
+
+	philosophers, _ := setupDining(
+		philosopherNames, stomachSize, actions,
 	)
-	startDining(pholosophers)
+	startDining(philosophers)
 }
 
-func allAskWaiter() {
+func askWaiter(philosopherNames []string, stomachSize int) {
 	waiter := make(chan struct{}, len(philosopherNames)-1)
-	waitWaitersOk := func(p *philosopher) {
-		waiter <- struct{}{}
-		p.takeRightFork()
-		p.takeLeftFork()
-		p.eat()
-		p.returnLeftFork()
-		p.returnRightFork()
-		<-waiter
+	actions := []func(*philosopher){}
+
+	for i := 0; i < len(philosopherNames); i++ {
+		actions = append(
+			actions,
+			func(p *philosopher) {
+				waiter <- struct{}{}
+				p.takeRightFork()
+				p.takeLeftFork()
+				p.eat()
+				p.returnLeftFork()
+				p.returnRightFork()
+				<-waiter
+			},
+		)
 	}
-	pholosophers, _ := setupDining(
-		philosopherNames,
-		[]func(*philosopher){
-			waitWaitersOk,
-			waitWaitersOk,
-			waitWaitersOk,
-			waitWaitersOk,
-			waitWaitersOk,
-		},
+
+	philosophers, _ := setupDining(
+		philosopherNames, stomachSize, actions,
 	)
-	startDining(pholosophers)
+	startDining(philosophers)
+}
+
+func controlByMonitor(philosopherNames []string, stomachSize int) {
+	var mntr *monitor
+	actions := []func(*philosopher){}
+
+	for i := 0; i < len(philosopherNames); i++ {
+		chairIdx := i
+		actions = append(
+			actions,
+			func(p *philosopher) {
+				mntr.pickup(chairIdx)
+				p.eat()
+				mntr.putdown(chairIdx)
+			},
+		)
+	}
+
+	philosophers, _ := setupDining(
+		philosopherNames, stomachSize, actions,
+	)
+	mntr = newMonitor(philosophers)
+	startDining(philosophers)
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	philosopherNames := []string{"Socrates", "Plato", "Aristotle", "Kant", "Nietzsche"}
+	stomachSize := 1000
 
+	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
+
 	switch *actionFlag {
 	case 0:
-		allTakeRightFirst() // !!! this pattern will deadlock !!!
+		allTakeRightFirst(philosopherNames, stomachSize) // !!! this pattern will deadlock !!!
 	case 1:
-		oneTakeLeftFirst()
+		oneTakeLeftFirst(philosopherNames, stomachSize)
 	case 2:
-		allAskWaiter()
+		askWaiter(philosopherNames, stomachSize)
+	case 3:
+		controlByMonitor(philosopherNames, stomachSize)
 	}
 }
