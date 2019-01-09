@@ -13,23 +13,13 @@ const (
 )
 
 type monitor struct {
-	mutex        *sync.Mutex
-	conds        []*sync.Cond
-	states       []state
-	philosophers []*philosopher
-	n            int
-}
+	mutex *sync.Mutex
+	conds []*sync.Cond
 
-func newMonitor(philosophers []*philosopher) *monitor {
-	mutex := &sync.Mutex{}
-	conds := []*sync.Cond{}
-	states := []state{}
-	n := len(philosophers)
-	for i := 0; i < n; i++ {
-		conds = append(conds, sync.NewCond(mutex))
-		states = append(states, thinking)
-	}
-	return &monitor{mutex, conds, states, philosophers, n}
+	states       []state
+	philosophers []*Philosopher
+
+	n int
 }
 
 func (m *monitor) test(i int) {
@@ -66,4 +56,16 @@ func (m *monitor) putdown(i int) {
 	left, right := (i-1+m.n)%m.n, (i+1)%m.n
 	m.test(left)
 	m.test(right)
+}
+
+func newMonitor(philosophers []*Philosopher) *monitor {
+	mutex := &sync.Mutex{}
+	conds := []*sync.Cond{}
+	states := []state{}
+	n := len(philosophers)
+	for i := 0; i < n; i++ {
+		conds = append(conds, sync.NewCond(mutex))
+		states = append(states, thinking)
+	}
+	return &monitor{mutex, conds, states, philosophers, n}
 }

@@ -5,22 +5,42 @@ import (
 	"time"
 )
 
-func setupDining(names []string, stomachSize int, maxEatNS int, actions []func(*philosopher)) ([]*philosopher, error) {
-	if len(names) != len(actions) {
+// PrintFlag (true: do print, false: no print)
+var PrintFlag = true
+
+var philosopherNames = []string{
+	"Socrates", "Plato", "Aristotle", "Kant", "Nietzsche",
+	"Confucius", "Averroes", "Buddha", "Abelard", "Adorno",
+	"Bacon", "Barthes", "Bataille", "Baudrillard", "Beauvoir",
+	"Benjamin", "Berkeley", "Butler", "Camus", "Chomsky",
+	"Cixous", "Deleuze", "Derrida", "Descartes", "Dewey",
+	"Foucault", "Gadamer", "Habermas", "Haraway", "Hegel",
+	"Heidegger", "Hobbes", "Hume", "Husserl", "Irigaray",
+	"James", "Immanuel", "Kristeva", "Tzu", "Levinas",
+	"Locke", "Lyotard", "Ponty", "Mill", "Moore",
+	"Quine", "Rand", "Rousseau", "Sartre", "Schopenhauer",
+	"Spinoza", "Wittgenstein", "Aquinas", "Arendt", "Augustine",
+}
+
+func setupDining(philosopherN int, stomachSize int, maxEatNS int, actions []func(*Philosopher)) ([]*Philosopher, error) {
+	if philosopherN != len(actions) {
 		return nil, fmt.Errorf("names length and actions length must be same")
 	}
+	if philosopherN > len(philosopherNames) {
+		return nil, fmt.Errorf("philosopherN must be smaller than %d", len(philosopherNames))
+	}
 
-	philosophers := []*philosopher{}
-	for i := 0; i < len(names); i++ {
+	philosophers := []*Philosopher{}
+	for i := 0; i < philosopherN; i++ {
 		philosophers = append(
 			philosophers,
 			newPhilosopher(
-				names[i], stomachSize, maxEatNS, actions[i],
+				philosopherNames[i], stomachSize, maxEatNS, actions[i],
 			),
 		)
 	}
 	for i, philo := range philosophers {
-		if i == len(names)-1 {
+		if i == philosopherN-1 {
 			philosophers[0].leftFork = philo.rightFork
 		} else {
 			philosophers[i+1].leftFork = philo.rightFork
@@ -30,7 +50,12 @@ func setupDining(names []string, stomachSize int, maxEatNS int, actions []func(*
 	return philosophers, nil
 }
 
-func startDining(philosophers []*philosopher) {
+// StartDining starts philosophers' dining
+func StartDining(philosophers []*Philosopher) {
+	for _, philo := range philosophers {
+		philo.init()
+	}
+
 	startTime := time.Now()
 	doneChannels := []chan struct{}{}
 	for _, philo := range philosophers {
@@ -43,16 +68,19 @@ func startDining(philosophers []*philosopher) {
 	}
 	endTime := time.Now()
 
-	fmt.Printf("dining finished in %.2f seconds.", (endTime.Sub(startTime)).Seconds())
+	if PrintFlag {
+		fmt.Printf("dining finished in %.2f seconds.", (endTime.Sub(startTime)).Seconds())
+	}
 }
 
-func AllTakeRightFirst(philosopherNames []string, stomachSize int, maxEatNS int) {
-	actions := []func(*philosopher){}
+// PrepareAllRightFirst prepare all philosophers to take right fork first
+func PrepareAllRightFirst(philosopherN int, stomachSize int, maxEatNS int) ([]*Philosopher, error) {
+	actions := []func(*Philosopher){}
 
-	for i := 0; i < len(philosopherNames); i++ {
+	for i := 0; i < philosopherN; i++ {
 		actions = append(
 			actions,
-			func(p *philosopher) {
+			func(p *Philosopher) {
 				p.takeRightFork()
 				p.takeLeftFork()
 				p.eat()
@@ -62,15 +90,15 @@ func AllTakeRightFirst(philosopherNames []string, stomachSize int, maxEatNS int)
 		)
 	}
 
-	philosophers, _ := setupDining(
-		philosopherNames, stomachSize, maxEatNS, actions,
+	return setupDining(
+		philosopherN, stomachSize, maxEatNS, actions,
 	)
-	startDining(philosophers)
 }
 
-func OneTakeLeftFirst(philosopherNames []string, stomachSize int, maxEatNS int) {
-	actions := []func(*philosopher){
-		func(p *philosopher) {
+// PrepareOneLeftFirst prepare a philosopher to take left fork first
+func PrepareOneLeftFirst(philosopherN int, stomachSize int, maxEatNS int) ([]*Philosopher, error) {
+	actions := []func(*Philosopher){
+		func(p *Philosopher) {
 			p.takeLeftFork()
 			p.takeRightFork()
 			p.eat()
@@ -79,10 +107,10 @@ func OneTakeLeftFirst(philosopherNames []string, stomachSize int, maxEatNS int) 
 		},
 	}
 
-	for i := 1; i < len(philosopherNames); i++ {
+	for i := 1; i < philosopherN; i++ {
 		actions = append(
 			actions,
-			func(p *philosopher) {
+			func(p *Philosopher) {
 				p.takeRightFork()
 				p.takeLeftFork()
 				p.eat()
@@ -92,20 +120,20 @@ func OneTakeLeftFirst(philosopherNames []string, stomachSize int, maxEatNS int) 
 		)
 	}
 
-	philosophers, _ := setupDining(
-		philosopherNames, stomachSize, maxEatNS, actions,
+	return setupDining(
+		philosopherN, stomachSize, maxEatNS, actions,
 	)
-	startDining(philosophers)
 }
 
-func AskWaiter(philosopherNames []string, stomachSize int, maxEatNS int) {
-	waiter := make(chan struct{}, len(philosopherNames)-1)
-	actions := []func(*philosopher){}
+// PrepareAskWaiter prepare philosophers to ask the waiter
+func PrepareAskWaiter(philosopherN int, stomachSize int, maxEatNS int) ([]*Philosopher, error) {
+	waiter := make(chan struct{}, philosopherN-1)
+	actions := []func(*Philosopher){}
 
-	for i := 0; i < len(philosopherNames); i++ {
+	for i := 0; i < philosopherN; i++ {
 		actions = append(
 			actions,
-			func(p *philosopher) {
+			func(p *Philosopher) {
 				waiter <- struct{}{}
 				p.takeRightFork()
 				p.takeLeftFork()
@@ -117,21 +145,21 @@ func AskWaiter(philosopherNames []string, stomachSize int, maxEatNS int) {
 		)
 	}
 
-	philosophers, _ := setupDining(
-		philosopherNames, stomachSize, maxEatNS, actions,
+	return setupDining(
+		philosopherN, stomachSize, maxEatNS, actions,
 	)
-	startDining(philosophers)
 }
 
-func ControlByMonitor(philosopherNames []string, stomachSize int, maxEatNS int) {
+// PrepareControlByMonitor prepare philosophers controlled by the monitor
+func PrepareControlByMonitor(philosopherN int, stomachSize int, maxEatNS int) ([]*Philosopher, error) {
 	var mntr *monitor
-	actions := []func(*philosopher){}
+	actions := []func(*Philosopher){}
 
-	for i := 0; i < len(philosopherNames); i++ {
+	for i := 0; i < philosopherN; i++ {
 		chairIdx := i
 		actions = append(
 			actions,
-			func(p *philosopher) {
+			func(p *Philosopher) {
 				mntr.pickup(chairIdx)
 				p.eat()
 				mntr.putdown(chairIdx)
@@ -139,9 +167,9 @@ func ControlByMonitor(philosopherNames []string, stomachSize int, maxEatNS int) 
 		)
 	}
 
-	philosophers, _ := setupDining(
-		philosopherNames, stomachSize, maxEatNS, actions,
+	philosophers, err := setupDining(
+		philosopherN, stomachSize, maxEatNS, actions,
 	)
 	mntr = newMonitor(philosophers)
-	startDining(philosophers)
+	return philosophers, err
 }
